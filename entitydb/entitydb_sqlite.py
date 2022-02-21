@@ -36,9 +36,9 @@ class EntityDB_SQLite(EntityDB):
             component._uid = random.randint(0, sys.maxsize)
             component_uids.append(component._uid)
             columns = [PRIMARY_KEY, ENTITY_REFERENCE] + \
-                list(get_variables_of(component).keys())
+                list(EntityDB.get_variables_of(component).keys())
             cur.execute(f"INSERT INTO {component_name} ({','.join(columns)}) VALUES ({get_questionmarks(len(columns))})", [
-                        component._uid] + [entity.uid] + list(get_variables_of(component).values()))
+                        component._uid] + [entity.uid] + list(EntityDB.get_variables_of(component).values()))
             con.commit()
 
         # * Add the entity
@@ -57,7 +57,7 @@ class EntityDB_SQLite(EntityDB):
         con, cur = self._connect_to_db()
         for component in entity.get_components():
             component_name = type(component).__name__
-            component_variables = get_variables_of(component)
+            component_variables = EntityDB.get_variables_of(component)
             cvar_update_strings = []
             for varname in component_variables:
                 cvar_update_strings.append(f"{varname} = ?")
@@ -214,7 +214,7 @@ class EntityDB_SQLite(EntityDB):
             con, cur = self._connect_to_db()
             cur.execute(
                 f"CREATE TABLE IF NOT EXISTS {component_name} ({PRIMARY_KEY} INTEGER PRIMARY KEY, {ENTITY_REFERENCE} INTEGER)")
-            variables = get_instance_variables(component)
+            variables = EntityDB.get_instance_variables(component)
             for var_name in variables:
                 if not does_column_exist(cur, component_name, var_name):
                     cur.execute(f"ALTER TABLE {component_name} ADD {var_name}")
@@ -252,28 +252,3 @@ def get_questionmarks(amount: int) -> str:
         return "?"
     else:
         return "?" + str(",?" * (amount - 1))
-
-
-def get_variables_of(o: object) -> dict[str, object]:
-    '''
-    Returns the public variables of this object.
-    Result is a dict of the var name, to its value
-    '''
-    result = dict()
-
-    var_names = dir(o)
-    for var_name in var_names:
-        attr = getattr(o, var_name)
-        if not var_name.startswith("_"):
-            result[var_name] = attr
-
-    return result
-
-
-def get_instance_variables(t: Type) -> dict[str, Type]:
-    '''
-    Given a type (class), will return the arguments needed to construct it
-    '''
-    args = inspect.getfullargspec(t.__init__).annotations
-    args.pop("return", None)
-    return args

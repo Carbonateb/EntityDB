@@ -92,3 +92,28 @@ class EntityDB():
             if varname not in [PRIMARY_KEY, ENTITY_REFERENCE]:
                 component_values[varname] = component_data[varname]
         return component_type(**component_values)
+
+    @classmethod
+    def get_variables_of(cls, o: object) -> dict[str, object]:
+        '''
+        Returns the public variables of this object.
+        Result is a dict of the var name, to its value
+        '''
+        result = dict()
+
+        var_names = dir(o)
+        for var_name in var_names:
+            attr = getattr(o, var_name)
+            if not var_name.startswith("_"):
+                result[var_name] = attr
+
+        return result
+
+    @classmethod
+    def get_instance_variables(cls, t: Type) -> dict[str, Type]:
+        '''
+        Given a type (class), will return the arguments needed to construct it
+        '''
+        args = inspect.getfullargspec(t.__init__).annotations
+        args.pop("return", None)
+        return args
