@@ -65,7 +65,12 @@ class EntityDB_GCS(EntityDB):
         return new_eid
 
     def update_entity(self, entity: Entity) -> bool:
-        return super().update_entity(entity)
+        for component in entity.get_components():
+            vars = EntityDB.get_variables_of(component)
+            for varname in vars:
+                new_blob = self.bucket.blob(
+                    f"{VALUES_FOLDER}/{component._uid}/{varname}")
+                new_blob.upload_from_string(str(vars[varname]))
 
     def delete_entity(self, entity: Entity) -> None:
         if not entity.uid:
@@ -83,12 +88,11 @@ class EntityDB_GCS(EntityDB):
         # All found eids, and their dict of component names to cids (only components that exist in the query)
         all_entities: dict[str, dict[str, str]] = dict()
 
-        for component in system.include_components:
-            component_name = system.include_components[component].__name__
+        for var_name in system.include_components:
+            component_name = system.include_components[var_name].__name__
             blobs = self._search_blobs(f"{COMPONENT_FOLDER}/{component_name}/")
             found_components: set[str] = set()
-            for b in blobs:
-                blob: Blob = b
+            for blob in blobs:
                 eid, cid = blob.name.split(BLOBNAME_DELIMITER)[-1].split("-")
                 found_components.add(eid)
                 if eid in all_entities:
@@ -101,13 +105,16 @@ class EntityDB_GCS(EntityDB):
             else:
                 matched_eids = found_components
 
-        # TODO exlude components
+        # TODO search the ENTITIES_FOLDER instead
         for component in system.exclude_components:
-            pass
+            blobs = self._search_blobs(f"{COMPONENT_FOLDER}/{component.__name__}/")
+            exclude_eids: set[str] = set()
+            for blob in blobs:
+                eid, cid = blob.name.split(BLOBNAME_DELIMITER)[-1].split("-")
+                exclude_eids.add(eid)
+            matched_eids -= exclude_eids
 
         # TODO optional components
-        for component in system.optional_components:
-            pass
 
         # * Load the components of the matched eids
         matched_entities: dict[str, dict[str, str]] = dict()
@@ -168,12 +175,16 @@ class EntityDB_GCS(EntityDB):
     def _load_entity_from_cids(self, eid: str, components: dict[str, str]) -> Entity:
         result = Entity([])
         result.uid = eid
-        for cid in list(components.values()):
+        for comp_name in components:
+            cid = components[comp_name]
+            component_data: dict = dict()
             blobs: list[Blob] = self._search_blobs(f"{VALUES_FOLDER}/{cid}/")
             # Iterate over every property in the blob
             for blob in blobs:
                 varname = blob.name.split("/")[-1]
-                print(varname, blob.download_as_text())
-            pass
-        raise NotImplementedError()
+                component_data[varname] = blob.download_as_text()
+            # Need to get the component name somehow, might need to rethink how the data is stored
+            component_type = self.component_classes[comp_name]
+            new_component = self._create_component_from_data(component_type, component_data, cid)
+            result._components[component_type] = new_component
         return result

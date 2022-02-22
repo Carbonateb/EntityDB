@@ -124,7 +124,7 @@ class EntityDB_SQLite(EntityDB):
             return False
 
         new_component = self._create_component_from_data(
-            component_type, component_data)
+            component_type, component_data, component_data[PRIMARY_KEY])
 
         entity._components[component_type] = new_component
         if component_name in entity._unloaded_components:  # Clean up
@@ -164,7 +164,7 @@ class EntityDB_SQLite(EntityDB):
 
                 component_type = self.component_classes[comp_name]
                 new_component = self._create_component_from_data(
-                    component_type, component_data)
+                    component_type, component_data, components[comp_name])
                 result._components[component_type] = new_component
             else:
                 result._unloaded_components.append(comp_name)
