@@ -142,13 +142,10 @@ class EntityDB():
             index += 1
 
     def _create_component_from_data(self, component_type: type, component_data: dict[str, any], cid:any = None) -> object:
-        # Just get the actual values, strip the extra stuff
+        component_vars = self.get_instance_variables(component_type)
         component_values: dict = {}
-        for varname in component_data:
-            # Exclude vars that are in the table but not passed into the constructor
-            # This should just be the primary key and entity reference
-            if varname not in [PRIMARY_KEY, ENTITY_REFERENCE]:
-                component_values[varname] = component_data[varname]
+        for varname in component_vars:
+            component_values[varname] = component_data.get(varname, None)
         result = component_type(**component_values)
         result._uid = cid
         return result
