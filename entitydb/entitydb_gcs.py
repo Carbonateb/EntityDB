@@ -16,7 +16,7 @@ REGION = "AUSTRALIA-SOUTHEAST1"
 BLOBNAME_DELIMITER = "/"
 ENTITY_FOLDER = "ent"
 COMPONENT_FOLDER = "cmp"
-VALUES_FOLDER = "val"
+DATA_FOLDER = "dat"
 UID_LENGTH = 16
 
 
@@ -59,7 +59,7 @@ class EntityDB_GCS(EntityDB):
             vars = EntityDB.get_variables_of(component)
             for varname in vars:
                 new_blob = self.bucket.blob(
-                    f"{VALUES_FOLDER}/{component._uid}/{varname}")
+                    f"{DATA_FOLDER}/{component._uid}/{varname}")
                 new_blob.upload_from_string(str(vars[varname]))
 
         return new_eid
@@ -69,7 +69,7 @@ class EntityDB_GCS(EntityDB):
             vars = EntityDB.get_variables_of(component)
             for varname in vars:
                 new_blob = self.bucket.blob(
-                    f"{VALUES_FOLDER}/{component._uid}/{varname}")
+                    f"{DATA_FOLDER}/{component._uid}/{varname}")
                 new_blob.upload_from_string(str(vars[varname]))
 
     def delete_entity(self, entity: Entity) -> None:
@@ -178,7 +178,7 @@ class EntityDB_GCS(EntityDB):
         for comp_name in components:
             cid = components[comp_name]
             component_data: dict = dict()
-            blobs: list[Blob] = self._search_blobs(f"{VALUES_FOLDER}/{cid}/")
+            blobs: list[Blob] = self._search_blobs(f"{DATA_FOLDER}/{cid}/")
             # Iterate over every property in the blob
             for blob in blobs:
                 varname = blob.name.split("/")[-1]
