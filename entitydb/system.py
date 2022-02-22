@@ -4,8 +4,7 @@ import inspect
 from typing import Callable
 from entitydb.entity import Entity
 
-from entitydb.entitydb import EntityDB
-
+import entitydb
 
 class SystemCommands(Enum):
     '''
@@ -27,7 +26,7 @@ class SystemCommands(Enum):
 
 
 class SystemWrapper():
-    def __init__(self, edb: 'EntityDB', system: Callable) -> None:
+    def __init__(self, edb: 'entitydb.EntityDB', system: Callable) -> None:
         # Which components we are searching for
         components: dict[str, type] = {}
         optional_components: dict[str, type] = {}
@@ -52,7 +51,7 @@ class SystemWrapper():
                     else:
                         components[arg] = annotations[arg]
 
-                elif annotations[arg] is EntityDB:
+                elif annotations[arg] is entitydb.EntityDB:
                     if edb_input:
                         raise Exception(
                             "Can't have multiple of the same type!")
@@ -74,7 +73,7 @@ class SystemWrapper():
                 if arg == "exclude":
                     exclude_components = spec.defaults[0]
 
-        self.edb: 'EntityDB' = edb
+        self.edb: entitydb.EntityDB = edb
         self.system: Callable = system
         self.include_components = components
         self.optional_components = optional_components

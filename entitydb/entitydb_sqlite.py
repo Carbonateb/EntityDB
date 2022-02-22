@@ -84,29 +84,14 @@ class EntityDB_SQLite(EntityDB):
         )
 
         con, cur = self._connect_to_db()
+        # TODO Don't SELECT * (all), just select the components needed for this query
         cur.execute(f"SELECT * FROM {ENTITY_TABLE} WHERE ({where_clause})")
-        found_entities = cur.fetchall()
+        found_entities:list[dict[str, str]] = cur.fetchall()
         con.close()
-        index = 0
-        for entity_ids in found_entities:
-            # TODO optimization: read below
-            # Don't bother trying to load every component from DB this entity has,
-            # just load the ones that this function calls for
-            entity: Entity = self._load_entity_from_ids(entity_ids)
-            commands = system.run(entity, index)
-
-            # * Run the commands
-
-            if SystemCommands.DELETE_ENTITY in commands:
-                self.delete_entity(entity)
-
-            elif SystemCommands.SAVE_ENTITY in commands:
-                self.update_entity(entity)
-
-            if SystemCommands.BREAK in commands:
-                break
-
-            index += 1
+        entity_components:dict[int, dict[str, int]] = dict()
+        for entity in found_entities:
+            entity_components[entity.pop(PRIMARY_KEY)] = entity
+        self._run_on_entities(system, entity_components)
 
     def count_matches(self, system_func: Callable) -> int:
         # TODO some code can be shared with EntityDB.run()
@@ -168,20 +153,18 @@ class EntityDB_SQLite(EntityDB):
             f"CREATE TABLE {ENTITY_TABLE} ({PRIMARY_KEY} INTEGER PRIMARY KEY)")
         con.commit()
 
-    def _load_entity_from_ids(self, ids: dict) -> Entity:
+    def _load_entity_from_cids(self, eid:int, components: dict[str, int]) -> Entity:
         '''
         Turns a row from the _entities table into an entity object.
         Only able to create components for ones that have been registered!
-
-        TODO allow specifiying which components to not load, to save performance.
         '''
         result = Entity([])
+        result.uid = eid
         con, cur = self._connect_to_db()
-        ids.pop(PRIMARY_KEY)
-        for comp_name in ids:
+        for comp_name in components:
             if comp_name in self.component_classes:
                 cur.execute(
-                    f"SELECT * FROM {comp_name} WHERE {PRIMARY_KEY} == ?", [ids[comp_name]])
+                    f"SELECT * FROM {comp_name} WHERE {PRIMARY_KEY} == ?", [components[comp_name]])
                 component_data: dict = cur.fetchone()
 
                 if not component_data:
@@ -191,7 +174,6 @@ class EntityDB_SQLite(EntityDB):
                 new_component = self._create_component_from_data(
                     component_type, component_data)
                 result._components[component_type] = new_component
-                result.uid = component_data[ENTITY_REFERENCE]
             else:
                 result._unloaded_components.append(comp_name)
                 #print("load entity: skipping unregistered component:", comp_name)

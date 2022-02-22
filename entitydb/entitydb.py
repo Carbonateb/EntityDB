@@ -5,6 +5,7 @@ import inspect
 from typing import Callable, Type
 
 from entitydb.entity import Entity
+from entitydb.system import SystemCommands, SystemWrapper
 
 
 # Constants
@@ -45,7 +46,7 @@ class EntityDB():
         '''
         raise NotImplementedError()
 
-    def delete_entity(self, entity: Entity) -> bool:
+    def delete_entity(self, entity: Entity) -> None:
         raise NotImplementedError()
 
     def run(self, system_func: Callable) -> None:
@@ -82,6 +83,38 @@ class EntityDB():
         - Removes the component from `Entity._unloaded_components`, if it was there.
         '''
         raise NotImplementedError()
+    
+    def _run_on_entities(self, system:SystemWrapper, entity_components:dict[str, any]) -> None:
+        '''
+        entity_components is a dict:
+        {
+            eid: {
+                ComponentA: cid,
+                ComponentB: cid
+            },
+        }
+        
+        '''
+        index = 0
+        for eid in entity_components:
+            # TODO optimization: read below
+            # Don't bother trying to load every component from DB this entity has,
+            # just load the ones that this function calls for
+            entity: Entity = self._load_entity_from_cids(eid, entity_components[eid])
+            commands = system.run(entity, index)
+
+            # * Run the commands
+
+            if SystemCommands.DELETE_ENTITY in commands:
+                self.delete_entity(entity)
+
+            elif SystemCommands.SAVE_ENTITY in commands:
+                self.update_entity(entity)
+
+            if SystemCommands.BREAK in commands:
+                break
+
+            index += 1
 
     def _create_component_from_data(self, component_type: type, component_data: dict) -> object:
         # Just get the actual values, strip the extra stuff
@@ -92,6 +125,12 @@ class EntityDB():
             if varname not in [PRIMARY_KEY, ENTITY_REFERENCE]:
                 component_values[varname] = component_data[varname]
         return component_type(**component_values)
+    
+    def _load_entity_from_cids(self, eid:str, components:dict[str, any]) -> Entity:
+        '''
+        Takes a dict of component_name to cids, and creates an entity from it.
+        '''
+        raise NotImplementedError()
 
     @classmethod
     def get_variables_of(cls, o: object) -> dict[str, object]:
