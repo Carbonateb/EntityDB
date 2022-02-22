@@ -83,8 +83,32 @@ class EntityDB():
         - Removes the component from `Entity._unloaded_components`, if it was there.
         '''
         raise NotImplementedError()
-    
-    def _run_on_entities(self, system:SystemWrapper, entity_components:dict[str, any]) -> None:
+
+    def _register_component_type(self, component: type) -> bool:
+        '''
+        Checks if this component has been seen before, if not, it
+        registers it and calls the _setup_component_type function.
+
+        Returns False if the component has already been registered
+        '''
+        component_name = component.__name__
+        if component_name not in self.component_classes:
+            self.component_classes[component_name] = component
+            self._setup_component_type(component)
+            return True
+        return False
+
+    def _setup_component_type(self, component: type) -> None:
+        '''
+        Called when a new component is registered. Only called once for each
+        component. Always called before a component type is used for the first time.
+
+        Use this as an opportunity to setup any data structures needed to store this component.
+        For example, create the tables in an SQL database.
+        '''
+        pass
+
+    def _run_on_entities(self, system: SystemWrapper, entity_components: dict[str, any]) -> None:
         '''
         entity_components is a dict:
         {
@@ -93,14 +117,15 @@ class EntityDB():
                 ComponentB: cid
             },
         }
-        
+
         '''
         index = 0
         for eid in entity_components:
             # TODO optimization: read below
             # Don't bother trying to load every component from DB this entity has,
             # just load the ones that this function calls for
-            entity: Entity = self._load_entity_from_cids(eid, entity_components[eid])
+            entity: Entity = self._load_entity_from_cids(
+                eid, entity_components[eid])
             commands = system.run(entity, index)
 
             # * Run the commands
@@ -125,12 +150,23 @@ class EntityDB():
             if varname not in [PRIMARY_KEY, ENTITY_REFERENCE]:
                 component_values[varname] = component_data[varname]
         return component_type(**component_values)
-    
-    def _load_entity_from_cids(self, eid:str, components:dict[str, any]) -> Entity:
+
+    def _load_entity_from_cids(self, eid: str, components: dict[str, any]) -> Entity:
         '''
         Takes a dict of component_name to cids, and creates an entity from it.
         '''
         raise NotImplementedError()
+    
+    def _parse_system(self, system_func:Callable) -> SystemWrapper:
+        '''
+        Analises the passed in system, putting it in a wrapper to easily access
+        its properties.
+        '''
+        result = SystemWrapper(self, system_func)
+        # Might be some components in the call signature we haven't seen yet
+        for component_type in result.get_components_from_signature():
+            self._register_component_type(component_type)
+        return result
 
     @classmethod
     def get_variables_of(cls, o: object) -> dict[str, object]:

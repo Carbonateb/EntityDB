@@ -68,11 +68,7 @@ class EntityDB_SQLite(EntityDB):
         return True
 
     def run(self, system_func: Callable) -> None:
-        system = SystemWrapper(self, system_func)
-
-        # Might be some components in the call signature we haven't seen yet
-        for component_type in system.get_components_from_signature():
-            self._register_component_type(component_type)
+        system = self._parse_system(system_func)
 
         # A string like "Comp_A IS NOT NULL AND Comp_N IS NULL"
         where_clause = " AND ".join(
@@ -86,9 +82,9 @@ class EntityDB_SQLite(EntityDB):
         con, cur = self._connect_to_db()
         # TODO Don't SELECT * (all), just select the components needed for this query
         cur.execute(f"SELECT * FROM {ENTITY_TABLE} WHERE ({where_clause})")
-        found_entities:list[dict[str, str]] = cur.fetchall()
+        found_entities: list[dict[str, str]] = cur.fetchall()
         con.close()
-        entity_components:dict[int, dict[str, int]] = dict()
+        entity_components: dict[int, dict[str, int]] = dict()
         for entity in found_entities:
             entity_components[entity.pop(PRIMARY_KEY)] = entity
         self._run_on_entities(system, entity_components)
@@ -96,11 +92,7 @@ class EntityDB_SQLite(EntityDB):
     def count_matches(self, system_func: Callable) -> int:
         # TODO some code can be shared with EntityDB.run()
 
-        system = SystemWrapper(self, system_func)
-
-        # Might be some components in the call signature we haven't seen yet
-        for component_type in system.get_components_from_signature():
-            self._register_component_type(component_type)
+        system = self._parse_system(system_func)
 
         # A string like "Comp_A IS NOT NULL AND Comp_N IS NULL"
         where_clause = " AND ".join(
@@ -153,7 +145,7 @@ class EntityDB_SQLite(EntityDB):
             f"CREATE TABLE {ENTITY_TABLE} ({PRIMARY_KEY} INTEGER PRIMARY KEY)")
         con.commit()
 
-    def _load_entity_from_cids(self, eid:int, components: dict[str, int]) -> Entity:
+    def _load_entity_from_cids(self, eid: int, components: dict[str, int]) -> Entity:
         '''
         Turns a row from the _entities table into an entity object.
         Only able to create components for ones that have been registered!
@@ -181,35 +173,23 @@ class EntityDB_SQLite(EntityDB):
         con.close()
         return result
 
-    def _register_component_type(self, component: type) -> bool:
-        '''
-        Checks if this component has been seen before, if not, it
-        registers it and creates a table for it (adding any new columns if neccessary).
-
-        Returns False if the component has already been registered
-        '''
+    def _setup_component_type(self, component: type) -> None:
         component_name = component.__name__
-        if component_name not in self.component_classes:
-            # Register it, and setup its table
-            self.component_classes[component_name] = component
+        con, cur = self._connect_to_db()
+        cur.execute(
+            f"CREATE TABLE IF NOT EXISTS {component_name} ({PRIMARY_KEY} INTEGER PRIMARY KEY, {ENTITY_REFERENCE} INTEGER)")
+        variables = EntityDB.get_instance_variables(component)
+        for var_name in variables:
+            if not does_column_exist(cur, component_name, var_name):
+                cur.execute(f"ALTER TABLE {component_name} ADD {var_name}")
 
-            con, cur = self._connect_to_db()
+        # Create its column in the entities table
+        if not does_column_exist(cur, ENTITY_TABLE, component_name):
             cur.execute(
-                f"CREATE TABLE IF NOT EXISTS {component_name} ({PRIMARY_KEY} INTEGER PRIMARY KEY, {ENTITY_REFERENCE} INTEGER)")
-            variables = EntityDB.get_instance_variables(component)
-            for var_name in variables:
-                if not does_column_exist(cur, component_name, var_name):
-                    cur.execute(f"ALTER TABLE {component_name} ADD {var_name}")
+                f"ALTER TABLE {ENTITY_TABLE} ADD {component_name} INTEGER")
 
-            # Create its column in the entities table
-            if not does_column_exist(cur, ENTITY_TABLE, component_name):
-                cur.execute(
-                    f"ALTER TABLE {ENTITY_TABLE} ADD {component_name} INTEGER")
-
-            con.commit()
-            con.close()
-            return True
-        return False
+        con.commit()
+        con.close()
 
 
 def does_column_exist(cursor: sqlite3.Cursor, table_name: str, column_name: str) -> bool:
