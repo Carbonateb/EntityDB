@@ -154,15 +154,15 @@ class EntityDB_GCS(EntityDB):
 
     def _random_id(self, length: int) -> str:
         '''Create a new random ID'''
-        return "".join(random.choice(string.ascii_letters + string.digits + string.ascii_letters.upper()) for i in range(length))
+        return "".join(random.choice(string.ascii_letters + string.digits) for i in range(length))
 
     def _random_eid(self) -> str:
-        '''Create a new random ID for use in entities'''
-        return "E" + self._random_id(UID_LENGTH - 1)
+        '''Create a new random ID for use in entities. First char will always be a number'''
+        return random.choice(string.digits) + self._random_id(UID_LENGTH - 1)
 
     def _random_cid(self) -> str:
-        '''Create a new random ID for use in components'''
-        return "C" + self._random_id(UID_LENGTH - 1)
+        '''Create a new random ID for use in components. First char will always be a letter'''
+        return random.choice(string.ascii_letters) + self._random_id(UID_LENGTH - 1)
 
     def _search_blobs(self, prefix: str):
         '''
