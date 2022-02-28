@@ -6,6 +6,7 @@ from typing import Callable, Type
 
 from entitydb.entity import Entity
 from entitydb.system import SystemCommands, SystemWrapper
+from entitydb.serializers import deserialize
 
 
 # Constants
@@ -145,7 +146,7 @@ class EntityDB():
         component_vars = self.get_instance_variables(component_type)
         component_values: dict = {}
         for varname in component_vars:
-            component_values[varname] = component_data.get(varname, None)
+            component_values[varname] = deserialize(component_data.get(varname, None), component_vars[varname])
         result = component_type(**component_values)
         result._uid = cid
         return result

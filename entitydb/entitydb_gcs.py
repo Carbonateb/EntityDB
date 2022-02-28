@@ -1,7 +1,7 @@
 import random
 import sys
 import string
-from typing import Callable, Type
+from typing import Callable, Type, final
 from entitydb.entitydb import EntityDB, PRIMARY_KEY, ENTITY_REFERENCE, ENTITY_TABLE
 from entitydb.entity import Entity
 from entitydb.system import SystemWrapper, SystemCommands
@@ -10,6 +10,7 @@ from google.cloud import storage
 from google.cloud.storage import Bucket, Blob
 import google.api_core.exceptions as google_exceptions
 from oauth2client.service_account import ServiceAccountCredentials
+from entitydb.serializers import serialize
 
 
 REGION = "AUSTRALIA-SOUTHEAST1"
@@ -58,9 +59,7 @@ class EntityDB_GCS(EntityDB):
             # Actual data
             vars = EntityDB.get_variables_of(component)
             for varname in vars:
-                new_blob = self.bucket.blob(
-                    f"{DATA_FOLDER}/{component._uid}/{varname}")
-                new_blob.upload_from_string(str(vars[varname]))
+                self._create_data_blob(component._uid, varname, vars[varname])
 
         return new_eid
 
@@ -68,9 +67,7 @@ class EntityDB_GCS(EntityDB):
         for component in entity.get_components():
             vars = EntityDB.get_variables_of(component)
             for varname in vars:
-                new_blob = self.bucket.blob(
-                    f"{DATA_FOLDER}/{component._uid}/{varname}")
-                new_blob.upload_from_string(str(vars[varname]))
+                self._create_data_blob(component._uid, varname, vars[varname])
 
     def delete_entity(self, entity: Entity) -> None:
         if not entity.uid:
@@ -148,6 +145,14 @@ class EntityDB_GCS(EntityDB):
         for bucket in buckets:
             result.append(bucket)
         return result
+    
+    def _create_data_blob(self, cid: str, varname: str, data: object) -> Blob:
+        '''Creates a blob that stores a field in a component'''
+        new_blob = self.bucket.blob(f"{DATA_FOLDER}/{cid}/{varname}")
+        final_data, mime_type = serialize(data)     
+        new_blob.content_type = mime_type
+        new_blob.upload_from_string(final_data, content_type=mime_type)
+        return new_blob
 
     def _create_empty_blob(self, name: str) -> Blob:
         return self.bucket.blob(name).upload_from_string("")
@@ -182,7 +187,7 @@ class EntityDB_GCS(EntityDB):
             # Iterate over every property in the blob
             for blob in blobs:
                 varname = blob.name.split("/")[-1]
-                component_data[varname] = blob.download_as_text()
+                component_data[varname] = blob.download_as_bytes()
             # Need to get the component name somehow, might need to rethink how the data is stored
             component_type = self.component_classes[comp_name]
             new_component = self._create_component_from_data(component_type, component_data, cid)

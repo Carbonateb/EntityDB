@@ -10,6 +10,7 @@ BUCKET_NAME = "lucas_dev_bucket"
 @component
 class MyComponent:
     my_int: int
+    my_dict: dict
 
 
 @component
@@ -24,16 +25,16 @@ db = EntityDB_GCS(BUCKET_NAME)
 
 
 # Init database with some basic entities
-db.add_entity(Entity([
-    MyComponent(10),
-    Person("Example Person")
-]))
-exit()
+# db.add_entity(Entity([
+#     MyComponent(10, {"hi": 5}),
+#     Person("Example Person")
+# ]))
 
 # Example that gets entities that have a Person and MyComponent
 def my_system(person: Person, my_component: MyComponent):
-    print(f"Name = '{person.name}' and number = '{my_component.my_int}'")
-# db.run(my_system)
+    print(f"Name = '{person.name}' and dict = '{my_component.my_dict}'")
+db.run(my_system)
+exit()
 
 
 # Example for entities that have MyComponent but not Person
